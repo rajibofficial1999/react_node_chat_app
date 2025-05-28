@@ -1,0 +1,2 @@
+1: Load more messages while scrolling
+2: Block user cant be viewed
