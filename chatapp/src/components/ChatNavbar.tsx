@@ -78,7 +78,7 @@ const ChatNavbar = () => {
   };
 
   const { data: fetchedChatInfo } = useQuery({
-    queryKey: ["chatInfo", chatItem?._id],
+    queryKey: ["chatInfo", chatItem?.friendShipId],
     queryFn: ({ queryKey }) => {
       const [, key] = queryKey;
       if (!chatItem?.isGroup) {
@@ -86,15 +86,15 @@ const ChatNavbar = () => {
       }
       return getGroupById(key as string);
     },
-    enabled: !!chatItem?._id && showChatModal,
+    enabled: !!chatItem?.friendShipId && showChatModal,
   });
 
   const makeAudioCall = () => {
-    navigate(`/audio-call/${chatItem?._id}`);
+    navigate(`/audio-call/${chatItem?.friendShipId}`);
   };
 
   const makeVideoCall = () => {
-    navigate(`/video-call/${chatItem?._id}`);
+    navigate(`/video-call/${chatItem?.friendShipId}`);
   };
 
   return (
