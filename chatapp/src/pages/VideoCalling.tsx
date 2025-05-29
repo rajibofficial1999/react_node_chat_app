@@ -1,8 +1,12 @@
+import { getFriendById } from "@/actions/friends";
 import TooltipWrapper from "@/components/TooltipWrapper";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { usePeer } from "@/contexts/PeerContext";
+import { useSocket } from "@/contexts/SocketContext";
 import useStore from "@/lib/store";
 import { cn } from "@/lib/utils";
+import { useQuery } from "@tanstack/react-query";
 import {
   Mic,
   MicOff,
@@ -12,17 +16,28 @@ import {
   Volume1,
   Volume2,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams } from "react-router";
 
 const VideoCalling = () => {
   const { chatId } = useParams();
-  const { user } = useStore((state) => state);
+  const { user, chatInfo } = useStore((state) => state);
+  const { createOffer } = usePeer();
+  const { socket } = useSocket();
 
   const [isMicOn, setIsMicOn] = useState(true);
   const [isSpeakerOn, setIsSpeakerOn] = useState(false);
   const [isReceived, setIsReceived] = useState(true);
   const [isShareScreen, setIsShareScreen] = useState(false);
+
+  const { data: fetchedChatInfo } = useQuery({
+    queryKey: ["chatInfo", chatId],
+    queryFn: ({ queryKey }) => {
+      const [, key] = queryKey;
+      return getFriendById(key as string);
+    },
+    enabled: !!chatId && !!chatInfo === false,
+  });
 
   const handleMic = () => {
     setIsMicOn(!isMicOn);
@@ -44,6 +59,32 @@ const VideoCalling = () => {
   const handleCancelCall = () => {
     console.log("cancel call");
   };
+
+  const callUser = async () => {
+    if ((fetchedChatInfo || chatInfo) && socket) {
+      let targetId: string;
+      if (fetchedChatInfo) {
+        const isSender = fetchedChatInfo.sender._id === user?._id;
+        targetId = isSender
+          ? fetchedChatInfo.receiver._id
+          : fetchedChatInfo.sender._id;
+      } else {
+        targetId = chatInfo?._id as string;
+      }
+
+      if (targetId) {
+        const offer = await createOffer();
+        socket.emit("call-user", {
+          to: targetId,
+          offer,
+        });
+      }
+    }
+  };
+
+  useEffect(() => {
+    callUser();
+  }, [fetchedChatInfo, chatInfo]);
 
   return (
     <div className="h-screen w-full flex flex-col items-center justify-center relative">

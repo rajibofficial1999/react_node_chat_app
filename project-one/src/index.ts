@@ -26,10 +26,11 @@ const io = new SocketIOServer(server, {
   },
 });
 
-const onlineUsers = new Map();
+const userIdToSocketId = new Map<string, string>();
+const socketIdToUserId = new Map<string, string>();
 
 io.on("connection", async (socket) => {
-  await socketEvents(socket, io, onlineUsers);
+  await socketEvents(socket, io, userIdToSocketId, socketIdToUserId);
 });
 
 app.use((req, res, next) => {

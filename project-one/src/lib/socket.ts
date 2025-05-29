@@ -4,11 +4,14 @@ import { Friend, Group, User } from "../models";
 export const socketEvents = async (
   socket: Socket,
   io: Server,
-  onlineUsers: Map<string, string>
+  userIdToSocketId: Map<string, string>,
+  socketIdToUserId: Map<string, string>
 ) => {
   socket.on("user-online", (userId) => {
-    onlineUsers.set(userId, socket.id);
-    io.emit("online-users", Array.from(onlineUsers.keys()));
+    userIdToSocketId.set(userId, socket.id);
+    socketIdToUserId.set(socket.id, userId);
+    socket.join(userId);
+    io.emit("online-users", Array.from(userIdToSocketId.keys()));
   });
 
   socket.on("join-chat", async ({ userId, chatId, isGroup }) => {
@@ -44,8 +47,8 @@ export const socketEvents = async (
   });
 
   socket.on("logout", (userId) => {
-    onlineUsers.delete(userId);
-    io.emit("online-users", Array.from(onlineUsers.keys()));
+    userIdToSocketId.delete(userId);
+    io.emit("online-users", Array.from(userIdToSocketId.keys()));
   });
 
   socket.on("block-friend", ({ chatId }) => {
@@ -61,7 +64,7 @@ export const socketEvents = async (
   });
 
   socket.on("add-group-member", ({ chatId, addedUserId }) => {
-    const socketId = onlineUsers.get(addedUserId);
+    const socketId = userIdToSocketId.get(addedUserId);
 
     if (socketId) {
       socket.to(socketId).emit("group-member-added", { chatId });
@@ -103,8 +106,6 @@ export const socketEvents = async (
 
     for (const friend of friends) {
       const chatId = friend._id.toString();
-      console.log("chatId", chatId);
-
       io.to(chatId).emit("user-avatar-changed", {
         chatId,
       });
@@ -112,7 +113,7 @@ export const socketEvents = async (
   });
 
   socket.on("accept-friend", ({ chatId, acceptedUserId }) => {
-    const socketId = onlineUsers.get(acceptedUserId);
+    const socketId = userIdToSocketId.get(acceptedUserId);
 
     if (socketId) {
       io.to(socketId).emit("friend-accepted", { chatId });
@@ -120,7 +121,7 @@ export const socketEvents = async (
   });
 
   socket.on("unblock-user", ({ chatId, unblockedUserId }) => {
-    const socketId = onlineUsers.get(unblockedUserId);
+    const socketId = userIdToSocketId.get(unblockedUserId);
 
     if (socketId) {
       io.to(socketId).emit("user-unblocked", { chatId });
@@ -139,13 +140,30 @@ export const socketEvents = async (
     socket.to(chatId).emit("message-has-seen", { chatId });
   });
 
+  socket.on("call-user", ({ to, offer }) => {
+    const socketId = userIdToSocketId.get(to);
+    const userId = socketIdToUserId.get(socket.id);
+
+    if (socketId && userId) {
+      io.to(socketId).emit("incoming-call", { from: userId, offer });
+    }
+  });
+
+  socket.on("call-accepted", ({ callerId, answer }) => {
+    const socketId = userIdToSocketId.get(callerId);
+
+    if (socketId) {
+      socket.to(socketId).emit("call-accepted", { answer });
+    }
+  });
+
   socket.on("disconnect", () => {
-    for (const [userId, id] of onlineUsers.entries()) {
+    for (const [userId, id] of userIdToSocketId.entries()) {
       if (id === socket.id) {
-        onlineUsers.delete(userId);
+        userIdToSocketId.delete(userId);
         break;
       }
     }
-    io.emit("online-users", Array.from(onlineUsers.keys()));
+    io.emit("online-users", Array.from(userIdToSocketId.keys()));
   });
 };
